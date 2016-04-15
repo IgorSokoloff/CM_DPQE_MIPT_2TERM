@@ -1,2 +1,2 @@
-# CM_DPQE_MIPT_2TERM
+# CM_DPQE_MIPT_4TERM
 Computer modeling tasks
