@@ -55,6 +55,7 @@ public:
     void hilbert_transform();
     double standard_deviation(const QVector<double>& vector1, const QVector<double>& vector2);
     int s_k (int k, int N);
+    double A (double x, double a);
     double F (double alpha, double a, double f0, double x);
 
     ~MainWindow();
@@ -79,8 +80,8 @@ private:
 
     vector<double> u_v;           //u + vave ()
 
-    double A;
-    QVector<double> F_or;
+    //double A;
+   // QVector<double> F_or;
     QVector<double> F_v;
     QVector<double> x;
     QVector<double> A_or;   //A_or - A original

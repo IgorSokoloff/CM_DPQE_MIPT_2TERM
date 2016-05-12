@@ -13,16 +13,19 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->widget->addGraph(); //A_v
     ui->widget->addGraph(); //f
     ui->widget->addGraph(); //f_v
+    ui->widget->addGraph(); //u
 
     ui->widget->graph(0)->setName("A");
     ui->widget->graph(1)->setName("A (Hilbert transform)");
-    ui->widget->graph(2)->setName("f");
-    ui->widget->graph(3)->setName("f (Hilbert transform)");
+    ui->widget->graph(2)->setName("F");
+    ui->widget->graph(3)->setName("F (Hilbert transform)");
+    ui->widget->graph(4)->setName("u (original)");
 
     ui->widget->graph(0)->setPen(QPen(Qt::blue));
     ui->widget->graph(1)->setPen(QPen(Qt::red));
     ui->widget->graph(2)->setPen(QPen(Qt::green));
     ui->widget->graph(3)->setPen(QPen(Qt::black));
+    ui->widget->graph(4)->setPen(QPen(Qt::yellow));
 
     srand(time(NULL));
 
@@ -31,13 +34,13 @@ MainWindow::MainWindow(QWidget *parent) :
 
 
     //(1)settinng the paprametres of source signal
-    A = 1;
-    a = 4;
+    //A = 1;
+    a = 5;
     alpha = 0.2;
-    f0 = 2;
+    f0 = 1;
 
     //(2)settinng the uniform grid
-    N = 2048;
+    N = 1024;
     L = 16;
 
 
@@ -61,7 +64,6 @@ void print_vector(const QVector<double>& vector)
     for (int i = 0; i < vector.size(); i++)
         qDebug()<<QString("Val %1  ").arg(vector[i], 0, 'g', 3);
 }
-
 
 MainWindow::~MainWindow()
 {
@@ -95,28 +97,36 @@ void MainWindow::digitizing()
     A_or.clear();
     f.clear();
     x.clear();
-    F_or.clear();
+    //F_or.clear();
 
     u.reserve(N);
     W.reserve(N);
     A_or.reserve(N);
     f.reserve (N);
     x.reserve(N);
-    F_or.reserve(N);
+    //F_or.reserve(N);
 
     for (int j = 0; j < N; j++ )
     {
         x.push_back(  double(-L/2) + double(j)*double(L)/double(N) );
-        F_or.push_back( F(alpha, a, f0, x.back())  );
-        u.push_back( A*cos ( F_or.back() ) );
-        A_or.push_back( A );
-        f.push_back( f0*( 1 - alpha*cos( M_PI*x.back()/a )  ) );
+        A_or.push_back(A(x.back(), a));
+        f.push_back( F(alpha, a, f0, x.back()) );
+        u.push_back( A_or.back() * cos ( f.back() ) );
     }
 }
 
 double MainWindow::F(double alpha, double a, double f0, double x )
 {
-    return 2*M_PI*f0*x - 2 * alpha * a * f0 * sin(x * M_PI / a);
+    double var = 2*M_PI*f0*(1 - alpha * qPow((x/a), 2))*x;
+    while (var >= M_PI || var < -M_PI) {
+        if (var < 0) {
+            var += 2 * M_PI;
+        }
+        else if (var > 0) {
+            var -= 2 * M_PI;
+        }
+    }
+    return var;
 }
 
 void MainWindow::hilbert_transform()
@@ -136,15 +146,18 @@ void MainWindow::hilbert_transform()
     u_v.reserve(N);
 
 //    W = dft(convert(u));
-
+    //1
     W = fft(convert(u));
 
-
+    //2
     for(int i = 0; i < N; i++)
     {
         W_v.push_back( W[i]*complex<double>(-1, 0)*complex<double>(0, 1)*complex<double>(s_k(i, N), 0) );
     }
+
     //TODO
+
+    //3
     u_v = convert (ifft(W_v));
 
     A_v.push_back( sqrt( u[0]*u[0] + u_v[0]*u_v[0] ));
@@ -156,18 +169,9 @@ void MainWindow::hilbert_transform()
        F_v.push_back( atan2( u_v[i], u[i] ) );
     }
 
-    for (int i = 1; i < N; i++) {
-        if(F_v[i] < F_v[i-1] )
-        {
-            for (int j = i; j < N; j++) {
-                F_v[j] += 2*M_PI;
-            }
-        }
-    }
-
     for(int i = 0; i < N - 1; i++)
     {
-        f_v.push_back( (F_v[i + 1] - F_v[i])/((x[i+1] - x[i])*2*M_PI) );
+        f_v.push_back( (F_v[i + 1] - F_v[i])/((x[i+1] - x[i])) );
     }
 
 }
@@ -178,18 +182,22 @@ double MainWindow::standard_deviation(const QVector<double>& vector1, const QVec
 
     for(int i = 0; i < std::min(vector1.size(), vector2.size()); i++)
         Sum += qPow(vector1[i] -vector2[i]  ,2);
-    double res = qSqrt(Sum/vector1.size());
-    return res;
+    return  qSqrt(Sum/vector1.size());
 }
 int MainWindow::s_k (int k, int N)
 {
     if(k == 0)
         return 0;
-    if( k>= N/2)
+    else if ( k>= N/2)
         return -1;
-    if (k < N/2)
+    else
         return 1;
 
+}
+
+double MainWindow::A(double x, double a)
+{
+    return exp(- pow(x / a, 10));
 }
 
 //###Draw
@@ -198,9 +206,9 @@ void MainWindow::draw()
     digitizing();
     hilbert_transform();
     ui->lineEdit->setText(QString("%1").arg(standard_deviation(A_or, A_v), 0, 'g', 5));
-    ui->lineEdit_2->setText(QString("%1").arg(standard_deviation(f, f_v), 0, 'g', 5));
+    ui->lineEdit_2->setText(QString("%1").arg(standard_deviation(f, F_v), 0, 'g', 5));
 
-    set_borders (x[0], x.back()*1.2, *std::min_element(f_v.begin(), f_v.end())*1.2, *std::max_element(f_v.begin(), f_v.end())*1.2);
+    set_borders (x[0] * 2, x.back() * 2, *std::min_element(f_v.begin(), f_v.end()) * 0.1, *std::max_element(f_v.begin(), f_v.end())* 0.1);
     set_range(B);
 
     ui->widget->legend->setVisible(true);
@@ -216,7 +224,8 @@ void MainWindow::draw()
     ui->widget->graph(0)->setData(x, A_or);
     ui->widget->graph(1)->setData(x, A_v);
     ui->widget->graph(2)->setData(x, f);
-    ui->widget->graph(3)->setData(x, f_v);
+    ui->widget->graph(3)->setData(x, F_v);
+    ui->widget->graph(4)->setData(x, QVector<double>::fromStdVector(u));
     ui->widget->replot();
 
 }
